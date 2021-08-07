@@ -32,7 +32,7 @@ class AwsLabsCoreStack(cdk.Stack):
         )
         self.vpc.add_flow_log("labs-core-vpc-flowLog")
 
-        security_group = ec2.SecurityGroup(self, "labs-core-Allow443ForSSMEndpoints",
+        security_group = ec2.SecurityGroup(self, "labs-core-Allow443ForSSMEndpoints-SG",
             vpc=self.vpc,
             allow_all_outbound=False
         )
