@@ -18,6 +18,10 @@ class AwsLabsCoreStack(cdk.Stack):
 
         # The code that defines your stack goes here
 
+
+        #Parameter: StackType
+
+        stack_type = cdk.CfnParameter(self, 'stackType',allowed_values=["extended","basic"],type="String")
         # LABS_CORE VPC
         self.vpc = ec2.Vpc(
             self, "labs-core-vpc",
@@ -46,8 +50,10 @@ class AwsLabsCoreStack(cdk.Stack):
         # "com.amazonaws.eu-west-3.ssm",
         # "com.amazonaws.eu-west-3.ssmmessages",
 
-        ssmEndpoints = ['ec2messages', 'ssm', 'ssmmessages']
-        for ssmEndpoint in ssmEndpoints:   
-            # vpc.add_interface_endpoint("labs-core-"+ssmEndpoint,service=ec2.InterfaceVpcEndpointService("com.amazonaws."+core.Aws.REGION+"."+ssmEndpoint,443))
-            self.vpc.add_interface_endpoint("labs-core-"+ssmEndpoint,service=ec2.InterfaceVpcEndpointService("com.amazonaws."+core.Aws.REGION+ "."+ssmEndpoint,443),private_dns_enabled=True, security_groups=[security_group])
+        if (stack_type.value_as_string == "extended"):
+            ssmEndpoints = ['ec2messages', 'ssm', 'ssmmessages']
+            for ssmEndpoint in ssmEndpoints:
+                # vpc.add_interface_endpoint("labs-core-"+ssmEndpoint,service=ec2.InterfaceVpcEndpointService("com.amazonaws."+core.Aws.REGION+"."+ssmEndpoint,443))
+                self.vpc.add_interface_endpoint("labs-core-"+ssmEndpoint,service=ec2.InterfaceVpcEndpointService("com.amazonaws."+core.Aws.REGION+ "."+ssmEndpoint,443),private_dns_enabled=True, security_groups=[security_group])
+        
 
