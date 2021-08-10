@@ -14,7 +14,7 @@ from aws_cdk import (
 
 
 instance_type = ec2.InstanceType("t3.small")
-key_name = "test-alb"  # Setup key_name for EC2 instance login 
+# key_name = "test-alb"  # Setup key_name for EC2 instance login 
 
 ubuntu_ami = ec2.GenericLinuxImage({
     "eu-west-1": "ami-0a8e758f5e873d1c1"
@@ -43,6 +43,10 @@ class DetAws011Stack(cdk.Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         # The code that defines your stack goes here
+
+        #Parameter: LinuxDistro
+        # distro = cdk.CfnParameter(self, 'distro',allowed_values=["ubuntu","amazonlinux2"],type="String")
+
         #Getting the data
         vpc = ec2.Vpc.from_lookup(self, "VPC",vpc_name="AwsLabsCoreStack/labs-core-vpc")
 
@@ -72,40 +76,49 @@ class DetAws011Stack(cdk.Stack):
             ec2.Port.tcp(80)
         )
 
-        asg_amazonlinux = autoscaling.AutoScalingGroup(
-            self,
-            "DVWA_LINUX_ASG",
-            vpc=vpc,
-            vpc_subnets= ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
-            instance_type=instance_type, 
-            key_name=key_name,
-            machine_image= linux_ami,
-            role = role,
-            user_data=userdata_linux
-        )
+        # print(distro.value_as_string)
 
+        # if (distro.value_as_string == "amazonlinux2"):
+        #     asg_amazonlinux = autoscaling.AutoScalingGroup(
+        #         self,
+        #         "DVWA_LINUX_ASG",
+        #         vpc=vpc,
+        #         vpc_subnets= ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+        #         instance_type=instance_type, 
+        #         key_name=key_name,
+        #         machine_image= linux_ami,
+        #         role = role,
+        #         user_data=userdata_linux
+        #     )
+        #     listener.add_targets("Target", port=80, targets=[asg_amazonlinux])
+        
+        # if (distro.value_as_string == "ubuntu"):
         asg_ubuntu = autoscaling.AutoScalingGroup(
             self,
             "DVWA_UBUNTU_ASG",
             vpc=vpc,
             vpc_subnets= ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             instance_type=instance_type, 
-            key_name=key_name,
+            # key_name=key_name,
             machine_image= ubuntu_ami,
             role = role,
             user_data=userdata_ubuntu
         )
+        
 
 
-         #Creating the ALB
+        #Creating the ALB
         lb = elbv2.ApplicationLoadBalancer(
             self, "LB",
             vpc=vpc,
             internet_facing=True)
 
         listener = lb.add_listener("Listener", port=80)
-        listener.add_targets("Target", port=80, targets=[asg_amazonlinux,asg_ubuntu])
         listener.connections.allow_default_port_from_any_ipv4("Open to the world")
+        listener.add_targets("Target", port=80, targets=[asg_ubuntu])
+        
+        output = cdk.CfnOutput(self, "LoadBalancer DNS NAME",
+                                value=lb.load_balancer_dns_name,
+                                description="Application Load Balancer DNS")
     
-
         #Creating the WAF
