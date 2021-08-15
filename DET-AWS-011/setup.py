@@ -9,7 +9,7 @@ setuptools.setup(
     name="det_aws_011",
     version="0.0.2",
 
-    description="An empty CDK Python app",
+    description="KHLAB: DET-AWS-011",
     long_description=long_description,
     long_description_content_type="text/markdown",
 
@@ -24,6 +24,8 @@ setuptools.setup(
         "aws_cdk.aws_elasticloadbalancingv2==1.116.0",
         "aws_cdk.aws_autoscaling==1.116.0",
         "aws_cdk.aws_lambda==1.116.0",
+        "aws_cdk.aws_secretsmanager==1.116.0",
+        "aws-cdk.aws_wafv2==1.116.0"
     ],
 
     python_requires=">=3.6",

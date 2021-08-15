@@ -4,6 +4,8 @@ from aws_cdk import (
     aws_iam as iam,
     aws_elasticloadbalancingv2 as elbv2,
     aws_autoscaling as autoscaling,
+    aws_secretsmanager as _secrets_manager,
+    aws_wafv2 as waf,
     core as cdk
 )
 
@@ -50,9 +52,27 @@ class DetAws011Stack(cdk.Stack):
         #Getting the data
         vpc = ec2.Vpc.from_lookup(self, "VPC",vpc_name="AwsLabsCoreStack/labs-core-vpc")
 
+        #Database secret
+        database_secret = _secrets_manager.Secret(self, "DVWA_DATABASE_ADMIN_SECRET",
+            secret_name="dvwa-db-admin-credentials/admin-password",
+            generate_secret_string=_secrets_manager.SecretStringGenerator(
+                generate_string_key='password',
+                secret_string_template='{"username": "admin"}',
+                exclude_punctuation=True,
+                exclude_characters='/@\" \\\'',
+                require_each_included_type=True
+            )
+        )
+
         #Instance Profile fro ec2-instance
         role = iam.Role(self, "myDVWA-Role", assumed_by=iam.ServicePrincipal("ec2.amazonaws.com"))
         role.add_managed_policy(iam.ManagedPolicy.from_aws_managed_policy_name("AmazonSSMManagedInstanceCore"))
+        read_secret_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["secretsmanager:GetSecretValue",],
+            resources=[database_secret.secret_arn],
+        )
+        role.add_to_policy(read_secret_policy)
 
 
         #Creating the instance that will host DVWA
@@ -102,23 +122,91 @@ class DetAws011Stack(cdk.Stack):
             # key_name=key_name,
             machine_image= ubuntu_ami,
             role = role,
-            user_data=userdata_ubuntu
+            user_data=userdata_ubuntu,
         )
         
-
-
         #Creating the ALB
+        sg_alb = ec2.SecurityGroup(
+                self,
+                id="sg_alb",
+                vpc=vpc,
+                security_group_name="sg_alb",
+                allow_all_outbound=False
+        )
+
+        sg_alb.add_ingress_rule(
+            #Add your ip
+            peer=ec2.Peer.ipv4("XX.XX.XX.XX/32"),
+            connection=ec2.Port.tcp(80)
+        )
+
         lb = elbv2.ApplicationLoadBalancer(
             self, "LB",
             vpc=vpc,
+            security_group=sg_alb,
             internet_facing=True)
 
-        listener = lb.add_listener("Listener", port=80)
-        listener.connections.allow_default_port_from_any_ipv4("Open to the world")
+        listener = lb.add_listener("Listener", port=80, open=False)
+        # listener.connections.allow_default_port_from_any_ipv4("Open to the world")
         listener.add_targets("Target", port=80, targets=[asg_ubuntu])
         
         output = cdk.CfnOutput(self, "LoadBalancer DNS NAME",
                                 value=lb.load_balancer_dns_name,
                                 description="Application Load Balancer DNS")
     
-        #Creating the WAF
+        # Preparing the Rules for the WAF
+        rules = list()
+        rule = waf.CfnWebACL.RuleProperty(
+            name="AWSManagedRulesCommonRuleSet",
+            priority=10,
+            override_action= waf.CfnWebACL.OverrideActionProperty(none={}),
+            statement=waf.CfnWebACL.StatementProperty(
+                managed_rule_group_statement = waf.CfnWebACL.ManagedRuleGroupStatementProperty(
+                    name= "AWSManagedRulesCommonRuleSet",
+                    vendor_name= "AWS",
+                    excluded_rules= []
+                )
+            ),
+            visibility_config=waf.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled = True,
+                metric_name = "AWSManagedRulesCommonRuleSet",
+                sampled_requests_enabled = True
+            )
+        )
+        rules.append(rule)
+
+        rule = waf.CfnWebACL.RuleProperty(
+            name="AWSManagedRulesSQLiRuleSet",
+            priority=20,
+            override_action= waf.CfnWebACL.OverrideActionProperty(none={}),
+            statement=waf.CfnWebACL.StatementProperty(
+                managed_rule_group_statement = waf.CfnWebACL.ManagedRuleGroupStatementProperty(
+                    name= "AWSManagedRulesSQLiRuleSet",
+                    vendor_name= "AWS",
+                    excluded_rules= []
+                )
+            ),
+            visibility_config=waf.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled = True,
+                metric_name = "AWSManagedRulesSQLiRuleSet",
+                sampled_requests_enabled = True
+            )
+        )
+        rules.append(rule)
+        # 
+        # Creating the WAF WEB ACL
+        waf_wacl = waf.CfnWebACL(self, 
+        "WAFV2_WebACL_DVWA",
+        name="waf_webACL_DVWA",
+        scope="REGIONAL",
+        default_action=waf.CfnWebACL.DefaultActionProperty(allow={},block=None),
+        visibility_config=waf.CfnWebACL.VisibilityConfigProperty(
+            cloud_watch_metrics_enabled=True,
+            metric_name="waf_webACL_DVWA",
+            sampled_requests_enabled=True
+            ),
+        rules = rules
+        )
+
+        #Associating the WAF Web ACL with the ALB
+        waf.CfnWebACLAssociation(self, "WAFV2_WebACL_DVWA_Association",resource_arn=lb.load_balancer_arn,web_acl_arn=waf_wacl.attr_arn)

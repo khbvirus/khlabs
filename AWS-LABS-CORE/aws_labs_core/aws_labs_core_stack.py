@@ -33,7 +33,7 @@ class AwsLabsCoreStack(cdk.Stack):
                 # ec2.SubnetConfiguration(subnet_type=ec2.SubnetType.PRIVATE,name="labs-core-vpc-private-subnet",cidr_mask=24),
                 ec2.SubnetConfiguration(subnet_type=ec2.SubnetType.ISOLATED,name="labs-core-vpc-isolated-subnet",cidr_mask=24)
             ]
-        )
+        )        
         self.vpc.add_flow_log("labs-core-vpc-flowLog")
 
         security_group = ec2.SecurityGroup(self, "labs-core-Allow443ForSSMEndpoints-SG",
