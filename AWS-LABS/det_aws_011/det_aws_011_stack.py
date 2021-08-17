@@ -26,13 +26,13 @@ linux_ami = ec2.AmazonLinuxImage(generation=ec2.AmazonLinuxGeneration.AMAZON_LIN
                                  virtualization=ec2.AmazonLinuxVirt.HVM,
                                  storage=ec2.AmazonLinuxStorage.GENERAL_PURPOSE
                                  )  # Indicate your AMI, no need a specific id in the region
-with open("./user_data/user_data_amazonlinux2.sh") as f:
+with open("./user_data/det_aws_011/user_data_amazonlinux2.sh") as f:
     user_data_linux = f.read()
 
 userdata_linux=ec2.UserData.for_linux()
 userdata_linux.add_commands(user_data_linux)
 
-with open("./user_data/user_data_ubuntu.sh") as f:
+with open("./user_data/det_aws_011/user_data_ubuntu.sh") as f:
     user_data_ubuntu = f.read()
 
 userdata_ubuntu=ec2.UserData.for_linux()
@@ -41,7 +41,7 @@ userdata_ubuntu.add_commands(user_data_ubuntu)
 
 class DetAws011Stack(cdk.Stack):
 
-    def __init__(self, scope: cdk.Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: cdk.Construct, construct_id: str, core_vpc: ec2.IVpc, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # The code that defines your stack goes here
@@ -50,7 +50,8 @@ class DetAws011Stack(cdk.Stack):
         # distro = cdk.CfnParameter(self, 'distro',allowed_values=["ubuntu","amazonlinux2"],type="String")
 
         #Getting the data
-        vpc = ec2.Vpc.from_lookup(self, "VPC",vpc_name="AwsLabsCoreStack/labs-core-vpc")
+        # vpc = ec2.Vpc.from_lookup(self, "VPC",vpc_name="AwsLabsCoreStack/labs-core-vpc")
+        vpc = core_vpc
 
         #Database secret
         database_secret = _secrets_manager.Secret(self, "DVWA_DATABASE_ADMIN_SECRET",
